@@ -1,0 +1,60 @@
+#Nesse trabalho queremos ver graficamente os valores declarados gastos na campanha dos candidatos a deputados federais nas eleições de 2018
+
+#Pacotes que irão ser utilizandos no decorrer do trabalho
+
+library(dplyr)
+library(ggplot2)
+library(extrafont)
+
+#Configurando a fonte
+windowsFonts(Times=windowsFont("Times New Roman"))
+
+#É considerado aqui os dados eleitorais que estão disponíveis no TSE (Tribural Superior Eleitoral);
+#Necessita-se baixar as tabelas disponíveis do site; 
+#Foi considerado três informações: sobre os candidatos e das despesas de campanhas declaradas por cada candidato
+
+candidatos <- read.csv2("consulta_cand_2018_BRASIL.csv", na.strings = c("NULO", "-1"))
+despesas <- read.csv2("despesas_contratadas_candidatos_2018_BRASIL.csv", na.strings = c("NULO", "-1"))
+
+#Transformando essa base de dados no formato de tbl_df
+candidatos <-tbl_df(candidatos)
+despesas <- tbl_df(despesas)
+
+#Agrupando as despesas do candidato
+despesas <- despesas %>%
+  select(SQ_CANDIDATO, VR_DESPESA_CONTRATADA) %>%
+  group_by(SQ_CANDIDATO) %>%
+  summarise( n = n(), total_despesas = sum (VR_DESPESA_CONTRATADA))
+  
+#Unindo as bases de dados
+candidatos_despesas <- inner_join(candidatos, despesas, by = "SQ_CANDIDATO")
+
+#Nesse ponto seleciona-se as variáveis importantes para o estudo, filtra-se o grupo estudado (isto é, candidatos aptos ao cargo de deputado federal) 
+#e para ficar mais estético faz-se mais modificacoes nos nomes das variáveis
+
+base_cand <- candidatos_despesas %>%
+  select(DS_GENERO,DS_CARGO, total_despesas, DS_COR_RACA, DS_SITUACAO_CANDIDATURA ) %>%
+  filter(DS_SITUACAO_CANDIDATURA == "APTO" & DS_CARGO == "DEPUTADO FEDERAL") %>%
+  rename(DESPESAS_CAMPANHA = total_despesas,GENERO = DS_GENERO, COR_RACA = DS_COR_RACA)
+  
+#Ver as despesas de campanha de acordo com a cor/raça via gráfico
+
+ggplot(base_cand, aes(x=COR_RACA, y=DESPESAS_CAMPANHA,  fill= factor(COR_RACA))) +
+  facet_wrap(facets = ~GENERO, ncol = 1) +
+  geom_col() +
+  labs(title= "", y="Despesas de Campanha", x = "Cor/Raca",  fill= "Cor/Raca") +
+  scale_y_continuous(labels = scales::number_format()) +
+  theme_minimal(base_size = 11, base_family = "Times")
+  
+#Olhando agora sob a perpesctiva de despesa média por cor/raça (filtrando o gênero feminino).
+#Isso é importante pois existe um número maior de candidatas declaradas como brancas. Então, dessa forma tem-se uma dimensão uniforme dos dados. 
+
+base_cand %>% 
+    filter(GENERO == "FEMININO") %>%
+    group_by(COR_RACA) %>% 
+    summarise(MEDIA= mean(DESPESAS_CAMPANHA, na.rm=TRUE)) %>% 
+    ggplot(aes(x=reorder(COR_RACA, MEDIA), y=MEDIA,  fill=factor(COR_RACA))) +
+    geom_col() +
+    labs(title= "", y="Despesas de Campanha", x = "Cor/Raca",  fill= "Cor/Raca") +
+    scale_y_continuous(labels = scales::number_format()) +
+    theme_minimal(base_size = 11, base_family = "Times")
